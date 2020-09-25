@@ -11,6 +11,7 @@ numpy
 opencv-python
 tensorflow
 matplotlib
+open3d
 ```
 
 * run
