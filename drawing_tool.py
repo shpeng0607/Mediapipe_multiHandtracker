@@ -1,5 +1,4 @@
 import cv2
-import numpy as np
 
 POINT_COLOR = (0, 255, 0)
 CONNECTION_COLOR = (255, 0, 0)
@@ -29,3 +28,6 @@ def draw_connections(frame, points):
         x0, y0 = points[connection[0]]
         x1, y1 = points[connection[1]]
         cv2.line(frame, (int(x0), int(y0)), (int(x1), int(y1)), CONNECTION_COLOR, THICKNESS)
+
+def draw_texts(frame, text, position):
+    cv2.putText(frame, text, position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1, cv2.LINE_AA)

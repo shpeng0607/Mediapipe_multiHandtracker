@@ -1,6 +1,5 @@
 import numpy as np
 
-
 def non_max_suppression_fast(boxes, probabilities=None, overlap_threshold=0.3):
     """
     Algorithm to filter bounding box proposals by removing the ones with a too low confidence score

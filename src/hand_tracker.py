@@ -13,6 +13,9 @@ class HandTracker():
     """
 
     def __init__(self, palm_model, joint_model, anchors_path):
+        # gpu config
+        physical_devices = tf.config.experimental.list_physical_devices('GPU')
+        tf.config.experimental.set_memory_growth(device=physical_devices[0], enable=True)
         self.sess_palm = tf.Session(graph=self.load_pb(palm_model))
         self.sess_hand = tf.Session(graph=self.load_pb(joint_model))
 
@@ -69,7 +72,7 @@ class HandTracker():
         # finding the best prediction
         out_clf = np.clip(out_clf, -20, 20)
         probabilities = self._sigm(out_clf)
-        detecion_mask = probabilities > 0.3
+        detecion_mask = probabilities > 0.95
         candidate_detect = out_reg[detecion_mask]
         candidate_anchors = self.anchors[detecion_mask]
         probabilities = probabilities[detecion_mask]
@@ -91,7 +94,7 @@ class HandTracker():
             # bounding box offsets, width and height
             dx,dy,w,h = candidate_detect[max_idx, :4]
             center_wo_offst = candidate_anchors[max_idx,:2] * 256
-            
+
             # 7 initial keypoints
             keypoints = center_wo_offst + candidate_detect[max_idx,4:].reshape(-1,2)
             side = max(w,h) * self.box_enlarge
@@ -162,29 +165,16 @@ class HandTracker():
         return img_keypoints[:,:2]
 
     def get_box_rotation(self, keypoints, shape):
-        if self.calculate_palm:
-            middle_direction = (keypoints[2]-keypoints[0])
-        else:
-            middle_direction = (((keypoints[5]+keypoints[13])*0.5+keypoints[9])*0.5-keypoints[0])
-
+        middle_direction = (keypoints[2]-keypoints[0])
         angle = np.arctan2(-middle_direction[1], middle_direction[0]) * 180 / np.pi - 90
 
-        if self.calculate_palm:
-            palm_idxs = [i for i in range(7)]
-        else:
-            palm_idxs = [0,1,2,3,5,6,9,10,13,14,17,18] # [i for i in range(21)]#
-            #palm_idxs = [0,1,2,3,5,6,9,10,13,14,17,18]
+        palm_idxs = [i for i in range(7)]
 
-        xmax, xmin = keypoints[palm_idxs,0].max(), keypoints[palm_idxs,0].min() 
-        ymax, ymin = keypoints[palm_idxs,1].max(), keypoints[palm_idxs,1].min() 
+        xmax, xmin = keypoints[palm_idxs,0].max(), keypoints[palm_idxs,0].min()
+        ymax, ymin = keypoints[palm_idxs,1].max(), keypoints[palm_idxs,1].min()
 
         centre = ((xmax+xmin)/2, (ymax+ymin)/2)
-        side = max((xmax-xmin), (ymax-ymin)) 
-
-        # side = max(side, 240/640 *256 / self.box_enlarge)
-        # side = min(side, 300/640 *256 / self.box_enlarge)
-        # side = max(side, 120/640 *256 / self.box_enlarge)
-        # side = min(side, 240/640 *256 / self.box_enlarge)
+        side = max((xmax-xmin), (ymax-ymin))
 
         self.side_length = side
         self.angle = angle
@@ -200,12 +190,11 @@ class HandTracker():
         self.right_hand = {"joints":None, "palm":None, "box":None}
 
         img_pad, img_norm, pad = self.preprocess_img(img)
-        
+
         self.box_enlarge = 2.6
         self.box_shift = -0.5
-        
+
         palm_keypoints_list, side_list = self.detect_hand(img_norm)
-        #palm_keypoints, side = self.detect_hand(img_norm)
         if palm_keypoints_list is None:
             return None, None, None
 
@@ -219,18 +208,18 @@ class HandTracker():
             joints_3d, flag, handedness = self.predict_joints(img_landmark)
             joints = joints_3d.copy()[:,:2]
             rotated_joints = self.inv_crop_transform(trans_pts, joints)
-            
+
             kp_orig = rotated_joints
-            kp_palm = kp_considered 
+            kp_palm = kp_considered
             box = box_considered.astype(float)
             box *= max(img.shape[0], img.shape[1])/256
             kp_orig *= max(img.shape[0], img.shape[1])/256
             kp_palm *= max(img.shape[0], img.shape[1])/256
-           
+
             kp_orig -= pad[::-1]
             box -= pad[::-1]
             kp_palm -= pad[::-1]
-            
+
             if handedness == "left":
                 self.left_hand["joints"] = joints_3d
                 self.left_hand["joints"][:,:2] = kp_orig
